@@ -1,13 +1,13 @@
 from __future__ import annotations
 from typing import Optional, List, Union
 import os
-os.environ['USE_PYGEOS'] = '0'
+# os.environ['USE_PYGEOS'] = '0'
 import rioxarray
 import xarray
 import geopandas as gpd
 import pandas as pd
-from shapely import box
-import numpy as np
+from shapely.geometry import box
+# import numpy as np
 from util import make_grid
 import math
 from pseudo_zeros import sample_pseudo_zeros_alt
@@ -310,17 +310,17 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
     def add_pseudo_absences(
         self,
         amount,
-        constrain_by,
         region_poly,
+        # constrain_by=None,
         shuffle=True
     ) -> BioGeoDataFrame:
         self['presence'] = 1
 
-        zeros = sample_pseudo_zeros_alt(amount=amount, constrain_by=constrain_by, region_poly=region_poly)
+        zeros = sample_pseudo_zeros_alt(amount=amount, region_poly=region_poly) #constrain_by=constrain_by,
         zeros['presence'] = 0
 
         if shuffle:
-            zeros = gpd.GeoDataFrame(pd.concat([self, zeros])).sample(frac=1).drop(columns=['index_right'])
+            zeros = BioGeoDataFrame(pd.concat([self, zeros])).sample(frac=1).drop(columns=['index_right'])
 
         return zeros
     
@@ -335,7 +335,7 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
         # print(master_raster.rio.crs, master_raster.rio.crs == geodataframe.crs)
         if bands is None:
             bands = list(raster.keys())
-            
+
         print(raster)
         print(bands)
 
