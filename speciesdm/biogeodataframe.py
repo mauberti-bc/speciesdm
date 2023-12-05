@@ -7,7 +7,7 @@ import xarray
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import box
-# import numpy as np
+import numpy as np
 from util import make_grid
 import math
 from pseudo_zeros import sample_pseudo_zeros_alt
@@ -324,39 +324,72 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
 
         return zeros
     
+    # def extract_values(self, raster, bands=None):
+    #     # master_raster = rioxarray.open_rasterio(
+    #     #     raster, cache=False, chunks=True, mask_and_scale=True).squeeze()
+
+    #     # vars = master_raster.attrs['long_name']
+    #     # vars = [var for var in vars if 'max' not in var.split(
+    #     #     "_") and 'min' not in var.split("_")]
+
+    #     # print(master_raster.rio.crs, master_raster.rio.crs == geodataframe.crs)
+    #     if bands is None:
+    #         bands = list(raster.keys())
+
+    #     # print(raster)
+    #     # print(bands)
+
+    #     outer_array = None
+
+    #     for idx, point in self.iterrows():
+    #         inner_array = None
+    #         print(f"Extracting values: iteration {idx}")
+    #         # try:
+    #         rast = raster.rio.clip(
+    #             geometries=[point['buffered_geometry']], all_touched=True)
+            
+    #         for idx, band in enumerate(bands):
+    #             # for idx, band in enumerate(files):
+    #             values = rast[band].values
+    #             # mean = np.nanmean(values)
+    #             # point[f'{band}'] = mean
+    #             if inner_array is None:
+    #                 inner_array = values
+    #             else:
+    #                 inner_array = np.stack((inner_array, values))
+    #             # print(f"{band}: {values}")
+    #         # except Exception as e:
+    #         #     print(e)
+    #         print(inner_array, inner_array.shape)
+    #         if outer_array is None:
+    #             outer_array = inner_array
+    #         else:
+    #             outer_array = np.dstack(outer_array, inner_array)
+
+    #     return outer_array
     def extract_values(self, raster, bands=None):
-        # master_raster = rioxarray.open_rasterio(
-        #     raster, cache=False, chunks=True, mask_and_scale=True).squeeze()
-
-        # vars = master_raster.attrs['long_name']
-        # vars = [var for var in vars if 'max' not in var.split(
-        #     "_") and 'min' not in var.split("_")]
-
-        # print(master_raster.rio.crs, master_raster.rio.crs == geodataframe.crs)
         if bands is None:
             bands = list(raster.keys())
 
-        print(raster)
-        print(bands)
+        outer_list = []
 
-        tmp_list1 = []
         for idx, point in self.iterrows():
-            print(f"Extracting values: iteration {idx}")
-            tmp_list2 = []
-            # try:
-            rast = raster.rio.clip(
-                geometries=[point['buffered_geometry']], all_touched=True)
-            
-            for idx, band in enumerate(bands):
-                # for idx, band in enumerate(files):
-                values = rast[band].values
-                # mean = np.nanmean(values)
-                # point[f'{band}'] = mean
-                tmp_list2.append(values)
-                print(f"{band}: {values}")
-            # except Exception as e:
-            #     print(e)
-            tmp_list1.append(tmp_list2)
+            inner_array = None
+            try:
+                rast = raster.rio.clip(
+                    geometries=[point['buffered_geometry']], all_touched=True)
+                
+                for idx, band in enumerate(bands):
+                    values = rast[band].values
+                    if None in values:
+                        continue
+                    if inner_array is None:
+                        inner_array = values
+                    else:
+                        inner_array = np.stack((inner_array, values))
+            except Exception as e:
+                print(e)
+            outer_list.append({'arr': inner_array, 'presence': point.presence})
 
-        return tmp_list1
+        return outer_list
 
