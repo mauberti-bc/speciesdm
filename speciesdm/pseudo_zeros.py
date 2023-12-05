@@ -13,7 +13,7 @@ import math
 import rasterio
 from rasterio.vrt import WarpedVRT
 
-def sample_pseudo_zeros_alt(amount, region_poly): #constrain_by=constrain_by,
+def sample_pseudo_zeros_alt(amount, region_poly, constrain_by):
 
     minx, miny, maxx, maxy = region_poly.total_bounds
 
@@ -37,7 +37,7 @@ def sample_pseudo_zeros_alt(amount, region_poly): #constrain_by=constrain_by,
     if points_remaining > 0:
         print(f'{points_remaining} pseudo-absence points remaining.')
         extras = sample_pseudo_zeros_alt(
-            region_poly=region_poly,  amount=points_remaining) #constrain_by=constrain_by,
+            region_poly=region_poly,  amount=points_remaining, constrain_by=constrain_by)
         geodf = pd.concat([geodf, extras])
 
     return geodf

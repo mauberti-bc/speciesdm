@@ -11,6 +11,9 @@ import numpy as np
 from util import make_grid
 import math
 from pseudo_zeros import sample_pseudo_zeros_alt
+from multiprocessing import Pool
+from itertools import repeat
+from extract_values import _extract_values
 
 
 class BioSeries(pd.Series):
@@ -311,12 +314,18 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
         self,
         amount,
         region_poly,
-        # constrain_by=None,
+        constrain_by=None,
         shuffle=True
     ) -> BioGeoDataFrame:
+        
+        # Pseudo-absences cannot be within 1000 units (metres) of a presence
+        PSEUDO_BUFFER_DISTANCE = 1000
+
         self['presence'] = 1
 
-        zeros = sample_pseudo_zeros_alt(amount=amount, region_poly=region_poly) #constrain_by=constrain_by,
+        constrain_by = self.buffer(PSEUDO_BUFFER_DISTANCE).unary_union
+
+        zeros = sample_pseudo_zeros_alt(amount=amount, region_poly=region_poly, constrain_by=constrain_by)
         zeros['presence'] = 0
 
         if shuffle:
@@ -367,29 +376,17 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
     #             outer_array = np.dstack(outer_array, inner_array)
 
     #     return outer_array
-    def extract_values(self, raster, bands=None):
-        if bands is None:
-            bands = list(raster.keys())
+    # counter = 0
+    def extract_values(self, raster, n_cores=8):
+            chunks = np.array_split(
+                self.sample(np.minimum(n_cores, self.shape[0])-1).reset_index(drop=True), n_cores)
+            
+            p = Pool(n_cores)
+            print(p)
+            data = p.starmap(_extract_values, zip(
+                chunks, repeat(raster)))
+            p.close()
+            return data
 
-        outer_list = []
-
-        for idx, point in self.iterrows():
-            inner_array = None
-            try:
-                rast = raster.rio.clip(
-                    geometries=[point['buffered_geometry']], all_touched=True)
-                
-                for idx, band in enumerate(bands):
-                    values = rast[band].values
-                    if None in values:
-                        continue
-                    if inner_array is None:
-                        inner_array = values
-                    else:
-                        inner_array = np.stack((inner_array, values))
-            except Exception as e:
-                print(e)
-            outer_list.append({'arr': inner_array, 'presence': point.presence})
-
-        return outer_list
+    
 
