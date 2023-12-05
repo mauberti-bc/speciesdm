@@ -378,14 +378,16 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
     #     return outer_array
     # counter = 0
     def extract_values(self, raster, n_cores=8):
-            chunks = np.array_split(
-                self.sample(np.minimum(n_cores, self.shape[0])-1).reset_index(drop=True), n_cores)
+            chunks = np.array_split(self, n_cores)
+            
+            print(chunks)
             
             p = Pool(n_cores)
-            print(p)
+            
             data = p.starmap(_extract_values, zip(
                 chunks, repeat(raster)))
             p.close()
+
             return data
 
     
