@@ -16,15 +16,17 @@ def _extract_values(self, raster, bands=None):
 
         outer_list = []
 
+        nrow = self.shape[0]
+
         for idx, point in self.iterrows():
             inner_array = None
             try:
                 rast = raster.rio.clip(
                     geometries=[point['buffered_geometry']], all_touched=True)
                 
-                for idx, band in enumerate(bands):
+                for pdx, band in enumerate(bands):
                     values = rast[band].values
-                    print(idx, values)
+                    print(idx, nrow, values)
                     if None in values:
                         continue
                     if inner_array is None:

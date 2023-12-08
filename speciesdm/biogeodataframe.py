@@ -1,15 +1,11 @@
 from __future__ import annotations
-from typing import Optional, List, Union
-import os
-# os.environ['USE_PYGEOS'] = '0'
+from typing import List, Union
 import rioxarray
 import xarray
 import geopandas as gpd
 import pandas as pd
 from shapely.geometry import box
 import numpy as np
-from util import make_grid
-import math
 from pseudo_zeros import sample_pseudo_zeros_alt
 from multiprocessing import Pool
 from itertools import repeat
@@ -319,7 +315,7 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
     ) -> BioGeoDataFrame:
         
         # Pseudo-absences cannot be within 1000 units (metres) of a presence
-        PSEUDO_BUFFER_DISTANCE = 1000
+        PSEUDO_BUFFER_DISTANCE = 5000
 
         self['presence'] = 1
 
@@ -380,7 +376,7 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
     def extract_values(self, raster, n_cores=8):
             chunks = np.array_split(self, n_cores)
             
-            print(chunks)
+            # print(chunks)
             
             p = Pool(n_cores)
             
