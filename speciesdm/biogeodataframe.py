@@ -108,7 +108,8 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
         rasters_list = []
 
         # Given a list of raster tiles, find which ones are within x distance of a coord
-        self['geometry'] = self.buffer(distance/2, cap_style=3)
+        self_copy = self.copy()
+        self_copy['geometry'] = self_copy.buffer(distance/2, cap_style=3)
 
         # For each raster tile, check if any of the coordinates are within it
         for raster in rasters:
@@ -117,7 +118,7 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
             else:
                 r = raster
 
-            w = self[self._is_within(r)]
+            w = self_copy[self_copy._is_within(r)]
 
             # rasters_list.append(dict)
             if not w.empty:
@@ -145,7 +146,7 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
 
         constrain_by = self.buffer(not_within).unary_union
 
-        zeros = self._sample_pseudo_zeros(amount=amount, region_poly=region_poly, constrain_by=constrain_by)
+        zeros = self._sample_pseudo_absences(amount=amount, region_poly=region_poly, constrain_by=constrain_by)
         zeros['presence'] = 0
 
         if shuffle:
@@ -153,7 +154,7 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
 
         return zeros
 
-    def _sample_pseudo_zeros(self, amount, region_poly, constrain_by=None):
+    def _sample_pseudo_absences(self, amount, region_poly, constrain_by=None):
 
         minx, miny, maxx, maxy = region_poly.total_bounds
 
@@ -176,14 +177,14 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
 
             print(f'{points_remaining} pseudo-absence points remaining.')
 
-            extras = self._sample_pseudo_zeros(
+            extras = self._sample_pseudo_absences(
                 region_poly=region_poly,  amount=points_remaining, constrain_by=constrain_by)
             
             geodf = pd.concat([geodf, extras])
 
             return geodf
         
-    def _extract_values(self, chunk, raster, bands=None):
+    def _extract_values(self, chunk, raster, distance, bands=None):
         nrow = chunk.shape[0]
 
         if bands is None:
@@ -192,14 +193,20 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
         outer_list = []
 
         for idx, point in chunk.iterrows():
+            g = point['geometry']
+            minx, miny, maxx, maxy = (g.x - distance, g.y - distance, g.x + distance, g.y + distance)
+
             inner_array = None
             try:
-                rast = raster.rio.clip(
-                    geometries=[point['buffered_geometry']], all_touched=True)
+                # rast = raster.rio.clip(
+                #     geometries=[point['buffered_geometry']], all_touched=True)
+                rast = raster.rio.clip_box(
+                    minx, miny, maxx, maxy
+                )
                 
                 for idx, band in enumerate(bands):
                     values = rast[band].values
-                    print(idx, nrow, values)
+                    print(idx, nrow, values.shape)
                     if None in values:
                         continue
                     if inner_array is None:
@@ -213,12 +220,12 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
 
         return outer_list
 
-    def extract_values(self, raster, n_cores=8):
+    def extract_values(self, raster, distance, n_cores=8):
             chunks = np.array_split(self, n_cores)
 
             with Pool(n_cores) as pool:
                 data = pool.starmap(self._extract_values, zip(
-                    chunks, repeat(raster)))
+                    chunks, repeat(raster), repeat(distance)))
                 pool.close()
 
             return data
