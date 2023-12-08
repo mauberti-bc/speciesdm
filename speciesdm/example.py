@@ -1,17 +1,14 @@
-# from osgeo import gdal
 from biogeodataframe import BioGeoDataFrame
+from osgeo import gdal
 import geopandas as gpd
 from rioxarray.merge import merge_arrays
 from geocube.api.core import make_geocube
 import numpy as np
-import tensorflow as tf
-from keras.layers import Conv2D, MaxPooling2D
-from keras.layers import Activation, Dropout, Flatten, Dense
 
 
 # Set the CRS to BC Albers
 CRS = "EPSG:3005"
-GEOCUBE_RES = 30
+GEOCUBE_RES = 100
 N_SAMPLES = 5000
 
 
@@ -36,13 +33,14 @@ species = species.to_crs(CRS)
 # Load in biogeoclimatic zones and reproject to desired CRS
 # Use only the ZONE and geometry fields, the former of which is what we will predict species' distributions with
 bec_tmp = gpd.read_file("../data/bec").to_crs(CRS)
-bec_tmp = bec_tmp[["ZONE", "geometry"]]
+bec_tmp = bec_tmp[["ZONE", "SUBZONE", "geometry"]]
 
 
 # Categorical variables must be made numeric to be transformed into a raster, so must convert numbers back to strings
 # To do this, create list of all strings
 bec_zones = bec_tmp.ZONE.drop_duplicates().values.tolist()
-categorical_enums = {"ZONE": bec_zones}
+bec_subzones = bec_tmp.SUBZONE.drop_duplicates().values.tolist()
+categorical_enums = {"ZONE": bec_zones, "SUBZONE": bec_subzones}
 
 
 # Convert bec geodataframe to rioxarray raster
@@ -62,7 +60,6 @@ bec = make_geocube(
 ######################################### DO NOT DELETE #########################################
 # zone_string = bec['ZONE_categories'][bec['ZONE'].astype(int)].drop('ZONE_categories')
 # bec['ZONE'] = zone_string
-######################################### DO NOT DELETE #########################################
 
 
 # Create pseudo-absences
@@ -93,12 +90,45 @@ vals = pres_abs.extract_values(raster=merged_raster, distance=BUFFER_DISTANCE)
 vals = np.concatenate(vals)
 
 
+# Import required packages
+import tensorflow as tf
+import keras
+from keras import layers
+import pandas as pd
+from keras.layers import Conv2D, MaxPooling2D
+from keras.layers import Activation, Dropout, Flatten, Dense
+
+
+# listt = []
+# listt.append(np.array((((1, 1), (2, 2)), ((1, 1), (2, 2)))))
+# arr2 = np.array((((2, 2), (4, 4)), ((4, 4), (4, 4))))
+
+# # np.stack((listt, arr2)).shape
+# np.stack((listt))
+# # arr2
+
+
+# # [x['presence'] for x in vals if None not in x['arr'][0] and 'nodata' not in x['arr'][1]].__len__()
+# l = [
+#     x["arr"]
+#     for x in vals
+# ]
+# vals
+# # [x.shape for x in l]
+
+
+# np.array((((2, 2), (3, 3)), ((2, 2), (3, 3)), ((2, 2), (3, 3))))
+# np.zeros((255,255,3))
+# x_train[0].transpose().shape
+
+
 x_train = np.stack(
-    [x["arr"] for x in vals if x["arr"] is not None and "nodata" not in x["arr"]]
-)
+    [x["arr"].transpose() for x in vals]
+)  # if None not in x['arr'] is not None and 'nodata' not in x['arr']], axis=0)
 y_train = np.stack(
-    [x["presence"] for x in vals if x["arr"] is not None and "nodata" not in x["arr"]]
-)
+    [x["presence"] for x in vals]
+)  # if x['arr'] is not None and 'nodata' not in x['arr']])
+
 
 # model = tf.keras.models.Sequential([
 #   # tf.keras.layers.Input(shape=(1,)),
@@ -109,11 +139,11 @@ y_train = np.stack(
 # ])
 
 model = tf.keras.models.Sequential()
-model.add(Conv2D(32, (4, 4), input_shape=(64, 64, 1)))
+model.add(Conv2D(32, (2, 2), input_shape=(64, 64, 2)))
 model.add(Activation("relu"))
 model.add(MaxPooling2D(pool_size=(2, 2)))  # downsample each dimension by a factor of 2
 
-model.add(Conv2D(32, (4, 4)))
+model.add(Conv2D(32, (2, 2)))
 model.add(Activation("relu"))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 
@@ -127,8 +157,10 @@ model.add(Dense(2))  # This should be the number of layers
 model.add(Activation("softmax"))
 # len(model.weights)
 
+
 model.compile(
     optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"]
 )
 
-model.fit(x_train, y_train, batch_size=128, epochs=100)
+
+m = model.fit(x_train, y_train, batch_size=128, epochs=100)
