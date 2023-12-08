@@ -4,6 +4,9 @@ import geopandas as gpd
 from rioxarray.merge import merge_arrays
 from geocube.api.core import make_geocube
 import numpy as np
+import tensorflow as tf
+from keras.layers import Conv2D, MaxPooling2D
+from keras.layers import Activation, Dropout, Flatten, Dense
 
 
 # Set the CRS to BC Albers
@@ -52,10 +55,6 @@ bec = make_geocube(
 )
 
 
-# print(np.unique(bec['ZONE']))
-# print(np.unique(bec['ZONE'].astype(int)))
-
-
 # Convert numeric back to categorical string
 ######################################### DO NOT DELETE #########################################
 # zone_string = bec['ZONE_categories'][bec['ZONE'].astype(int)].drop('ZONE_categories')
@@ -81,46 +80,9 @@ rasters = pres_abs.list_rasters(BUFFER_DISTANCE, [bec])
 merged_raster = bec
 
 
-# Buffer each point so it intersects adjacent raster cells
-# pres_abs['buffered_geometry'] = pres_abs['geometry'].buffer(BUFFER_DISTANCE, cap_style=3)
-
-
 # For each occurrence point, build a 3D tensor
 vals = pres_abs.extract_values(raster=merged_raster, distance=BUFFER_DISTANCE)
 vals = np.concatenate(vals)
-
-
-# Import required packages
-import tensorflow as tf
-import keras
-from keras import layers
-import pandas as pd
-from keras.layers import Conv2D, MaxPooling2D
-from keras.layers import Activation, Dropout, Flatten, Dense
-
-
-# listt = []
-# listt.append(np.array((((1, 1), (2, 2)), ((1, 1), (2, 2)))))
-# arr2 = np.array((((2, 2), (4, 4)), ((4, 4), (4, 4))))
-
-# # np.stack((listt, arr2)).shape
-# np.stack((listt))
-# # arr2
-
-
-# # [x['presence'] for x in vals if None not in x['arr'][0] and 'nodata' not in x['arr'][1]].__len__()
-# l = [
-#     x["arr"]
-#     for x in vals
-# ]
-# vals
-# # [x.shape for x in l]
-
-
-# np.array((((2, 2), (3, 3)), ((2, 2), (3, 3)), ((2, 2), (3, 3))))
-# np.zeros((255,255,3))
-# x_train[0].transpose().shape
-
 
 x_train = np.stack(
     [x["arr"].transpose() for x in vals]
@@ -129,15 +91,7 @@ y_train = np.stack(
     [x["presence"] for x in vals]
 )  # if x['arr'] is not None and 'nodata' not in x['arr']])
 
-
-# model = tf.keras.models.Sequential([
-#   # tf.keras.layers.Input(shape=(1,)),
-#   tf.keras.layers.Flatten(),
-#   tf.keras.layers.Dense(4, activation='relu'),
-#   tf.keras.layers.Dense(4, activation='relu'),
-#   tf.keras.layers.Dense(2, activation='softmax')
-# ])
-
+# Create keras Sequential model
 model = tf.keras.models.Sequential()
 model.add(Conv2D(32, (2, 2), input_shape=(64, 64, 2)))
 model.add(Activation("relu"))
@@ -162,5 +116,4 @@ model.compile(
     optimizer="adam", loss="sparse_categorical_crossentropy", metrics=["accuracy"]
 )
 
-
-m = model.fit(x_train, y_train, batch_size=128, epochs=100)
+model.fit(x_train, y_train, batch_size=128, epochs=100)
