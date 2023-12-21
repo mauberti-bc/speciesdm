@@ -126,13 +126,13 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
 
             return geodf
 
-    def _extract_values(self, chunk, raster, distance):
+    def _extract_values(self, chunk, raster, distance, neighbourhood_size):
         nrow = chunk.shape[0]
 
         # if bands is None:
         #     bands = list(raster.keys())
 
-        res = raster.rio.resolution()[1]
+        res = abs(raster.rio.resolution()[0])
 
         outer_list = []
 
@@ -149,22 +149,31 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
             inner_list = []
 
             try:
-                # rast = raster.rio.clip(
-                #     geometries=[point['buffered_geometry']], all_touched=True)
-                rast = raster.rio.clip_box(minx, miny, maxx, maxy)
+                if isinstance(raster.chunks, tuple):
+                    # Load only the necessary portion within the clip box
+                    rast = raster.rio.clip_box(minx, miny, maxx, maxy).compute()
+                else:
+                    # Standard raster (not Dask), use the original clip_box method
+                    rast = raster.rio.clip_box(minx, miny, maxx, maxy)
 
-                for band in rast:
-                    values = rast[band].values
+                for band in range(rast.shape[0]):
+                    values = rast[band, :, :].values
 
-                    if None in values or values.shape != (64, 64):
+                    # print(rast[band])
+
+                    if None in values or values.shape != (
+                        neighbourhood_size,
+                        neighbourhood_size,
+                    ):
                         continue
 
                     inner_list.append(values)
 
+                # print("Rast 0", rast[0])
             except Exception as e:
                 print(e)
 
-            if len(inner_list) < 2:
+            if len(inner_list) < len(raster):
                 continue
 
             inner_array = np.stack(inner_list)
@@ -173,13 +182,16 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
 
         return outer_list
 
-    def extract_values(self, raster, distance, n_cores=1):
+    def extract_values(self, raster, distance, neighbourhood_size, n_cores=8):
         # bands = list(raster.keys())
 
         if n_cores > 1:
             chunks = np.array_split(self, n_cores)
             extract_func = partial(
-                self._extract_values, raster=raster, distance=distance
+                self._extract_values,
+                raster=raster,
+                distance=distance,
+                neighbourhood_size=neighbourhood_size,
             )
 
             with concurrent.futures.ProcessPoolExecutor(
@@ -188,6 +200,6 @@ class BioGeoDataFrame(gpd.GeoDataFrame):
                 data = list(executor.map(extract_func, chunks))
 
         else:
-            data = self._extract_values(self, raster, distance)
+            data = self._extract_values(self, raster, distance, neighbourhood_size)
 
         return data
